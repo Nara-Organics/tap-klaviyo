@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -69,10 +70,18 @@ class CampaignsStream(KlaviyoStream):
     ) -> dict[str, Any]:
         url_params = super().get_url_params(context, next_page_token)
 
-        # Apply channel filters
+        # Apply channel filters, flattening any existing and(...) to avoid nested and()
         if context:
-            parent_filter = url_params["filter"]
-            url_params["filter"] = f"and({parent_filter},{context['filter']})"
+            base_filter = url_params.get("filter", "")
+            channel_filter = context["filter"]
+            if base_filter.startswith("and(") and base_filter.endswith(")"):
+                # Flatten: and(a,b) + channel -> and(a,b,channel)
+                inner = base_filter[4:-1]
+                url_params["filter"] = f"and({inner},{channel_filter})"
+            elif base_filter:
+                url_params["filter"] = f"and({base_filter},{channel_filter})"
+            else:
+                url_params["filter"] = channel_filter
 
         return url_params
 
@@ -115,11 +124,9 @@ class ProfilesStream(KlaviyoStream):
     def _stringify_undeclared_complex_attrs(self, attrs: dict) -> None:
         """JSON-stringify any undeclared complex attribute values so BQ
         doesn't choke on inconsistent nested structures."""
-        import json as _json
-
-        for key, val in attrs.items():
+        for key, val in list(attrs.items()):
             if key not in self._declared_attrs and isinstance(val, (dict, list)):
-                attrs[key] = _json.dumps(val)
+                attrs[key] = json.dumps(val)
 
     @property
     def _number_field_paths(self) -> list[tuple[list[str], str]]:
@@ -225,6 +232,7 @@ class ListsStream(KlaviyoStream):
     path = "/lists"
     primary_keys = ["id"]
     replication_key = "updated"
+    apply_end_date_filter = False  # Klaviyo lists API only supports greater-than on updated, not less-than
 
     @override
     def get_child_context(self, record: Record, context: Context | None) -> Context | None:
