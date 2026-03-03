@@ -44,6 +44,16 @@ class TapKlaviyo(Tap):
             th.DateTimeType,
             description="The latest record date to sync (exclusive). Used for chunked backfill.",
         ),
+        th.Property(
+            "event_metric_ids_exclude",
+            th.ArrayType(th.StringType),
+            description=(
+                "List of Klaviyo metric IDs to exclude from event sync. "
+                "Events belonging to these metrics are dropped client-side. "
+                "Useful when you want to skip a small number of high-volume "
+                "event types."
+            ),
+        ),
     ).to_dict()
 
     @override

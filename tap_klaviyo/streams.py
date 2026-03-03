@@ -27,6 +27,14 @@ class EventsStream(KlaviyoStream):
     primary_keys = ["id"]
     replication_key = "datetime"
 
+    @property
+    def _excluded_metric_ids(self) -> frozenset[str]:
+        """Metric IDs to drop client-side."""
+        if not hasattr(self, "__excluded_metric_ids"):
+            ids = self.config.get("event_metric_ids_exclude") or []
+            self.__excluded_metric_ids: frozenset[str] = frozenset(ids)
+        return self.__excluded_metric_ids
+
     @override
     def post_process(
         self,
@@ -34,6 +42,14 @@ class EventsStream(KlaviyoStream):
         context: Context | None = None,
     ) -> Record | None:
         row["datetime"] = row["attributes"]["datetime"]
+
+        if self._excluded_metric_ids:
+            metric_id = (
+                row.get("relationships", {}).get("metric", {}).get("data", {}).get("id")
+            )
+            if metric_id in self._excluded_metric_ids:
+                return None
+
         return row
 
     @override
