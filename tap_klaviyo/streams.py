@@ -238,6 +238,16 @@ class MetricsStream(KlaviyoStream):
         context: Context | None = None,
     ) -> Record | None:
         row["updated"] = row["attributes"]["updated"]
+
+        # Stringify any complex values under integration so BQ always
+        # sees simple strings (category can be a string OR an object
+        # depending on the integration).
+        integration = row.get("attributes", {}).get("integration")
+        if isinstance(integration, dict):
+            for key, val in integration.items():
+                if isinstance(val, (dict, list)):
+                    integration[key] = json.dumps(val)
+
         return row
 
 
